@@ -17,15 +17,23 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
 #
+import os
+import os.path
+import sys
 
+envLambdaTaskRoot = os.environ["LAMBDA_TASK_ROOT"]
+print("LAMBDA_TASK_ROOT env var:"+os.environ["LAMBDA_TASK_ROOT"])
+print("sys.path:"+str(sys.path))
+
+sys.path.insert(0,envLambdaTaskRoot+"/NewBotoVersion")
+print("sys.path:"+str(sys.path))
+import botocore
 import boto3
 import json
 import logging
 import botocore.exceptions
-import os
 
 def lambda_handler(event, context):
-
 
     LOG_LEVEL = os.getenv('LOG_LEVEL')
     logging.getLogger().setLevel(LOG_LEVEL)
@@ -38,10 +46,12 @@ def lambda_handler(event, context):
         account_id = body['Account']
         aws_region = body['Region']
         event = body['Event']
+        config_recorder_exclusion_resource_string = body['ConfigRecorderExcludedResourceList']
 
         logging.info(f'Extracted Account: {account_id}')
         logging.info(f'Extracted Region: {aws_region}')
         logging.info(f'Extracted Event: {event}')
+        logging.info(f'Extracted config_recorder_exclusion_resource: {config_recorder_exclusion_resource_string}')
 
         bc = botocore.__version__
         b3 = boto3.__version__
@@ -87,8 +97,8 @@ def lambda_handler(event, context):
         try:
             role_arn = 'arn:aws:iam::' + account_id + ':role/aws-controltower-ConfigRecorderRole'
 
-            CONFIG_RECORDER_EXCLUSION_RESOURCE_STRING = os.getenv('CONFIG_RECORDER_EXCLUDED_RESOURCE_LIST')
-            CONFIG_RECORDER_EXCLUSION_RESOURCE_LIST = CONFIG_RECORDER_EXCLUSION_RESOURCE_STRING.split(',')
+            # CONFIG_RECORDER_EXCLUSION_RESOURCE_STRING = os.getenv('CONFIG_RECORDER_EXCLUDED_RESOURCE_LIST')
+            CONFIG_RECORDER_EXCLUSION_RESOURCE_LIST = config_recorder_exclusion_resource_string.split(',')
 
             # Event = Delete is when stack is deleted, we rollback changed made and leave it as ControlTower Intended
             if event == 'Delete':
@@ -104,21 +114,22 @@ def lambda_handler(event, context):
                 logging.info(f'Response for put_configuration_recorder :{response} ')
 
             else:
-                response = configservice.put_configuration_recorder(
-                    ConfigurationRecorder={
-                        'name': 'aws-controltower-BaselineConfigRecorder',
-                        'roleARN': role_arn,
-                        'recordingGroup': {
-                            'allSupported': False,
-                            'includeGlobalResourceTypes': False,
-                            'exclusionByResourceTypes': {
-                                'resourceTypes': CONFIG_RECORDER_EXCLUSION_RESOURCE_LIST
+                ConfigurationRecorderObj={
+                        "name": "aws-controltower-BaselineConfigRecorder",
+                        "roleARN": role_arn,
+                        "recordingGroup": {
+                            "allSupported": False,
+                            "includeGlobalResourceTypes": False,
+                            "exclusionByResourceTypes": {
+                                "resourceTypes": CONFIG_RECORDER_EXCLUSION_RESOURCE_LIST
                             },
-                            'recordingStrategy': {
-                                'useOnly': 'EXCLUSION_BY_RESOURCE_TYPES'
+                            "recordingStrategy": {
+                                "useOnly": "EXCLUSION_BY_RESOURCE_TYPES"
                             }
                         }
-                    })
+                    }
+                logging.info(f'ConfigurationRecorder Parameter :{ConfigurationRecorderObj} ')
+                response = configservice.put_configuration_recorder(ConfigurationRecorder=ConfigurationRecorderObj)
                 logging.info(f'Response for put_configuration_recorder :{response} ')
 
             # lets describe for configuration recorder after the update

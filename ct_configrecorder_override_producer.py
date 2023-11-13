@@ -41,8 +41,10 @@ def lambda_handler(event, context):
         # If so extract Account and Event info from the event data.
         
         is_eb_trigerred = 'source' in event
+        is_s3_trigerred = 'Records' in event
         
         logging.info(f'Is EventBridge Trigerred: {str(is_eb_trigerred)}')
+        logging.info(f'Is S3 Trigerred: {str(is_s3_trigerred)}')
         event_source = ''
         
         if is_eb_trigerred:
@@ -103,6 +105,8 @@ def lambda_handler(event, context):
         exception_message = str(e)
         logging.exception(f'{exception_type}: {exception_message}')
 
+def get_excluded_resource_list(account, region):
+    return "AWS::EC2::NetworkInterface,AWS::EC2::Volume"
 
 def override_config_recorder(excluded_accounts, sqs_url, account, event):
     
@@ -124,14 +128,23 @@ def override_config_recorder(excluded_accounts, sqs_url, account, event):
             for item in page['Summaries']:
                 account = item['Account']
                 region = item['Region']
-                send_message_to_sqs(event, account, region, excluded_accounts, sqs_client, sqs_url)
-                    
+                excluded_resource_list = get_excluded_resource_list(account, region)
+                send_message_to_sqs(
+                    event, 
+                    account, 
+                    region, 
+                    excluded_accounts, 
+                    excluded_resource_list, 
+                    sqs_client, 
+                    sqs_url
+                    )
+    
     except Exception as e:
         exception_type = e.__class__.__name__
         exception_message = str(e)
         logging.exception(f'{exception_type}: {exception_message}')
 
-def send_message_to_sqs(event, account, region, excluded_accounts, sqs_client, sqs_url):
+def send_message_to_sqs(event, account, region, excluded_accounts, config_recorder_excluded_resource_list, sqs_client, sqs_url):
     
     try:
 
@@ -139,7 +152,7 @@ def send_message_to_sqs(event, account, region, excluded_accounts, sqs_client, s
         if account not in excluded_accounts:
         
             #construct sqs message
-            sqs_msg = f'{{"Account": "{account}", "Region": "{region}", "Event": "{event}"}}'
+            sqs_msg = f'{{"Account": "{account}", "Region": "{region}", "Event": "{event}", "ConfigRecorderExcludedResourceList": "{config_recorder_excluded_resource_list}"}}'
 
             #send message to sqs
             response = sqs_client.send_message(
@@ -178,4 +191,4 @@ def update_excluded_accounts(excluded_accounts,sqs_url):
     except Exception as e:
         exception_type = e.__class__.__name__
         exception_message = str(e)
-        logging.exception(f'{exception_type}: {exception_message}')  
+        logging.exception(f'{exception_type}: {exception_message}')

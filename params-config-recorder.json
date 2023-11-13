@@ -1,0 +1,23 @@
+{
+    "DefaultConfigRecorderExcludedResourceTypes": [
+        "AWS::EC2::EC2Fleet",
+        "AWS::EC2::Instance",
+        "AWS::EC2::NetworkInterface",
+        "AWS::EC2::Volume",
+        "AWS::SSM::ManagedInstanceInventory"
+    ],
+    "ExcludedAccounts": [
+        "573155818481",
+        "804624909332",
+        "995211844677",
+        "375095627808",
+        "084480616658"
+    ],
+    "PersonalizedAccounts": {
+        "156164803240": [
+            "AWS::EC2::EC2Fleet",
+            "AWS::EC2::Volume"
+        ]
+    }
+}
+
