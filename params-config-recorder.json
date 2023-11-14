@@ -13,11 +13,20 @@
         "375095627808",
         "084480616658"
     ],
-    "PersonalizedAccounts": {
-        "156164803240": [
-            "AWS::EC2::EC2Fleet",
-            "AWS::EC2::Volume"
-        ]
+    "ConfigRecorderExcludedResourceTypesPerAccount": {
+        "156164803240": {
+            "all-regions": [
+                "AWS::EC2::NetworkInterface"
+            ],
+            "us-east-1": [
+                "AWS::EC2::EC2Fleet",
+                "AWS::EC2::Volume"
+            ],
+            "ap-southeast-1": [
+                "AWS::SSM::ManagedInstanceInventory",
+                "AWS::EC2::Instance"
+            ]
+        }
     }
 }
 

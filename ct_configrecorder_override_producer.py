@@ -18,28 +18,40 @@
 # IN THE SOFTWARE.
 #
 
+import json
 import boto3
 import cfnresource
 import os
 import logging
 import ast
 
+def load_config():
+    # Extract S3 bucket and key from the event
+    bucket = 'smt-config-recorder'
+    key = 'config/params-config-recorder.json'
+
+    # Initialize the S3 client
+    s3_client = boto3.client('s3')
+
+    # Get the content of the S3 object
+    response = s3_client.get_object(Bucket=bucket, Key=key)
+    content = response['Body'].read().decode('utf-8')
+
+    # Print or use the content as needed
+    print("Content of the S3 object:")
+    print(content)
+
+    return json.loads(content)
+
 def lambda_handler(event, context):
-    
     LOG_LEVEL = os.getenv('LOG_LEVEL')
     logging.getLogger().setLevel(LOG_LEVEL)
-
     try:
         logging.info('Event Data: ')
         logging.info(event)
         sqs_url = os.getenv('SQS_URL')
         excluded_accounts = os.getenv('EXCLUDED_ACCOUNTS')
         logging.info(f'Excluded Accounts: {excluded_accounts}')
-        sqs_client = boto3.client('sqs')
-        
-        # Check if the lambda was trigerred from EventBridge.
-        # If so extract Account and Event info from the event data.
-        
         is_eb_trigerred = 'source' in event
         is_s3_trigerred = 'Records' in event
         
@@ -47,6 +59,10 @@ def lambda_handler(event, context):
         logging.info(f'Is S3 Trigerred: {str(is_s3_trigerred)}')
         event_source = ''
         
+        if is_eb_trigerred and 's3' in event['Records'][0] and event['Records'][0]['s3']['object']['key'].endswith('params-config-recorder.json'):
+            event_source = 'aws.controltower'
+            logging.info(f"S3 Trigger Object name: {event['Records'][0]['s3']['object']['key']}")
+            event_name = 'UpdateLandingZoneByS3Change'
         if is_eb_trigerred:
             event_source = event['source']
             logging.info(f'Control Tower Event Source: {event_source}')
@@ -63,6 +79,9 @@ def lambda_handler(event, context):
             override_config_recorder(excluded_accounts, sqs_url, account, 'controltower')
         elif event_source == 'aws.controltower' and event_name == 'UpdateLandingZone':
             logging.info('overriding config recorder for ALL accounts due to UpdateLandingZone event')
+            override_config_recorder(excluded_accounts, sqs_url, '', 'controltower')
+        elif event_source == 'aws.controltower' and event_name == 'UpdateLandingZoneByS3Change':
+            logging.info('overriding config recorder for ALL accounts due to S3 config update event')
             override_config_recorder(excluded_accounts, sqs_url, '', 'controltower')
         elif ('LogicalResourceId' in event) and (event['RequestType'] == 'Create'):
             logging.info('CREATE CREATE')
@@ -145,14 +164,15 @@ def override_config_recorder(excluded_accounts, sqs_url, account, event):
         logging.exception(f'{exception_type}: {exception_message}')
 
 def send_message_to_sqs(event, account, region, excluded_accounts, config_recorder_excluded_resource_list, sqs_client, sqs_url):
-    
+    config = load_config()
+    excluded_accounts = config['ExcludedAccounts']
     try:
 
         #Proceed only if the account is not excluded
         if account not in excluded_accounts:
         
             #construct sqs message
-            sqs_msg = f'{{"Account": "{account}", "Region": "{region}", "Event": "{event}", "ConfigRecorderExcludedResourceList": "{config_recorder_excluded_resource_list}"}}'
+            sqs_msg = f'{{"Account": "{excluded_accounts}", "Region": "{region}", "Event": "{event}", "ConfigRecorderExcludedResourceList": "{config_recorder_excluded_resource_list}"}}'
 
             #send message to sqs
             response = sqs_client.send_message(

@@ -25,7 +25,7 @@ envLambdaTaskRoot = os.environ["LAMBDA_TASK_ROOT"]
 print("LAMBDA_TASK_ROOT env var:"+os.environ["LAMBDA_TASK_ROOT"])
 print("sys.path:"+str(sys.path))
 
-sys.path.insert(0,envLambdaTaskRoot+"/NewBotoVersion")
+sys.path.insert(0,envLambdaTaskRoot+"/boto3")
 print("sys.path:"+str(sys.path))
 import botocore
 import boto3
